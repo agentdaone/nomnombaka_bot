@@ -105,8 +105,8 @@ class HelpView(View):
 class MyBot(commands.Bot):
     async def setup_hook(self):
         node = wavelink.Node(
-            uri="http://127.0.0.1:2333",
-            password="youshallnotpass"
+            uri="https://lovely-truth.railway.internal:2333",
+            password=os.getenv('WAVELINK_PASSWORD')
         )
 
         await wavelink.Pool.connect(nodes=[node], client=self, cache_capacity=100)

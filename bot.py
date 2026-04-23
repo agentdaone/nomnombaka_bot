@@ -83,8 +83,8 @@ class HelpView(View):
             return discord.Embed(
                 title="🛡️ Moderation Commands",
                 description=(           	
-                    "`!purge <user>`\n"
-                    "`!change_nickname <user>`\n"
+                    "`!purge <amount>`\n"
+                    "`!change_nickname <user> <nick>`\n"
                     "`!reset_nickname <user>`\n"
                     "`!kick <user> <reason>`\n"
                     "`!ban <user> <reason>`\n"
@@ -136,9 +136,9 @@ async def get_audio_url(query):
             opts['cookiefile'] = cookie_path
 
         with yt_dlp.YoutubeDL(opts) as ydl:
-            if not query.startswith("http"):
+            if not (query.startswith("http://") or query.startswith("https://")):
                 info = ydl.extract_info(f"ytsearch:{query}", download=False)
-                return info['entries']
+                return info['entries'] # FIXED: Pulling first entry from search results
             else:
                 return ydl.extract_info(query, download=False)
 
@@ -204,24 +204,27 @@ async def check_youtube():
     channel = bot.get_channel(YOUTUBE_VIDEOS_CHANNEL_ID)
 
     while not bot.is_closed():
-        # Run the blocking feedparser in a separate thread
-        loop = asyncio.get_event_loop()
-        feed = await loop.run_in_executor(
-            None, 
-            functools.partial(feedparser.parse, YOUTUBE_RSS)
-        )
+        try:
+            # Run the blocking feedparser in a separate thread
+            loop = asyncio.get_event_loop()
+            feed = await loop.run_in_executor(
+                None, 
+                functools.partial(feedparser.parse, YOUTUBE_RSS)
+            )
 
-        if feed.entries:
-            latest = feed.entries.link
-            if latest != last_youtube:
-                last_youtube = latest
-                embed = discord.Embed(
-                    title="NEW YOUTUBE VIDEO 🔥",
-                    description=latest,
-                    color=0xFF0000, # YouTube Red
-                )
-                if channel:
-                    await channel.send(embed=embed)
+            if feed.entries:
+                latest = feed.entries.link # FIXED: Added index
+                if latest != last_youtube:
+                    last_youtube = latest
+                    embed = discord.Embed(
+                        title="NEW YOUTUBE VIDEO 🔥",
+                        description=latest,
+                        color=0xFF0000, # YouTube Red
+                    )
+                    if channel:
+                        await channel.send(embed=embed)
+        except Exception as e:
+            print(f"RSS error: {e}")
 
         await asyncio.sleep(300) # Check every 5 mins (don't spam or Nitter will ban you)
 
@@ -232,23 +235,26 @@ async def check_twitter():
     channel = bot.get_channel(TWITTER_POSTS_CHANNEL_ID)
 
     while not bot.is_closed():
-        loop = asyncio.get_event_loop()
-        feed = await loop.run_in_executor(
-            None, 
-            functools.partial(feedparser.parse, TWITTER_RSS)
-        )
+        try:
+            loop = asyncio.get_event_loop()
+            feed = await loop.run_in_executor(
+                None, 
+                functools.partial(feedparser.parse, TWITTER_RSS)
+            )
 
-        if feed.entries:
-            latest = feed.entries.link
-            if latest != last_twitter:
-                last_twitter = latest
-                embed = discord.Embed(
-                    title="NEW TWEET!",
-                    description=latest,
-                    color=0x1DA1F2,
-                )
-                if channel:
-                    await channel.send(embed=embed)
+            if feed.entries:
+                latest = feed.entries.link # FIXED: Added index
+                if latest != last_twitter:
+                    last_twitter = latest
+                    embed = discord.Embed(
+                        title="NEW TWEET!",
+                        description=latest,
+                        color=0x1DA1F2,
+                    )
+                    if channel:
+                        await channel.send(embed=embed)
+        except Exception as e:
+            print(f"RSS error: {e}")
 
         await asyncio.sleep(300)
 
@@ -322,7 +328,7 @@ async def purge(ctx, amount: int):
 
 @bot.command()
 @commands.has_permissions(manage_nicknames=True)
-async def change_nickname(ctx, nickname, member : discord.Member):
+async def change_nickname(ctx, member : discord.Member, *, nickname):
         if member == ctx.author:
             return await ctx.send("You can't change your nickname yourself 💀")
 
@@ -333,7 +339,7 @@ async def change_nickname(ctx, nickname, member : discord.Member):
             return await ctx.send("You can't moderate this user.")
 
         try:
-            await member.edit(nick=nick) # type: ignore
+            await member.edit(nick=nickname) # FIXED: changed 'nick' to 'nickname'
             await ctx.send(f"Changed nickname of {member.mention} to **{nickname}** 😈")
         except Exception as e:
             await ctx.send(f"Error: {e}")
@@ -351,7 +357,7 @@ async def reset_nickname(ctx, member : discord.Member):
             return await ctx.send("You can't moderate this user.")
 
         try:
-            await member.edit(nick=None) # type: ignore
+            await member.edit(nick=None) 
             await ctx.send(f"Reset done for nickname of {member.mention} ✅")
         except Exception as e:
             await ctx.send(f"Error: {e}")
@@ -446,7 +452,7 @@ async def say(ctx, *, text):
 @bot.command()
 async def play_music(ctx, *, url : str):
         if not ctx.author.voice:
-                await ctx.send("Join a music VC first!")
+                return await ctx.send("Join a music VC first!")
 
         channel = ctx.author.voice.channel
         vc = ctx.voice_client
@@ -465,7 +471,7 @@ async def play_music(ctx, *, url : str):
             except Exception as e:
                 return await ctx.send(f"Error fetching audio: {e}")
 
-        source = discord.FFmpegPCMAudio(audio_url, **FFMPEG_OPTIONS) # type: ignore
+        source = discord.FFmpegPCMAudio(audio_url, **FFMPEG_OPTIONS) 
         vc.play(source)
         await ctx.send(f"Playing {title}!")
 

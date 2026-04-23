@@ -234,13 +234,13 @@ async def purge(ctx, amount: int):
 @commands.has_permissions(kick_members=True)
 async def kick(ctx, member: discord.Member, *, reason=None):
     await member.kick(reason=reason)
-    await ctx.send("kicked")
+    await ctx.send(f"Kicked {member.mention}!")
 
 @bot.command()
 @commands.has_permissions(ban_members=True)
 async def ban(ctx, member: discord.Member, *, reason=None):
     await member.ban(reason=reason)
-    await ctx.send("banned")
+    await ctx.send(f"Banned {member.mention}!")
 
 @bot.command()
 @commands.has_permissions(ban_members=True)
@@ -255,28 +255,31 @@ async def unban(ctx, *, user):
 @bot.command()
 async def change_nickname(ctx, member: discord.Member, *, nick):
     await member.edit(nick=nick)
-
+    await ctx.send(f"Changed nickname of {member.mention} to {nick}")
 @bot.command()
 async def reset_nickname(ctx, member: discord.Member):
     await member.edit(nick=None)
-
+    await ctx.send(f"Reset done for nickname of {member.mention}")
 # ---------------- DM / TTS ----------------
 
 @bot.command()
 async def send_dm(ctx, user: discord.User, *, message: str):
     await user.send(message)
-    await ctx.send("sent")
+    await ctx.send(f"DM sent to {user.mention}")
 
 @bot.command()
 async def say(ctx, *, text):
-    mp3_fp = io.BytesIO()
+    if text > 1000:
+        mp3_fp = io.BytesIO()
 
-    tts = gTTS(text)
-    tts.write_to_fp(mp3_fp)
-    mp3_fp.seek(0)
+        tts = gTTS(text)
+        tts.write_to_fp(mp3_fp)
+        mp3_fp.seek(0)
 
-    file = discord.File(fp=mp3_fp, filename="voice.mp3")
-    await ctx.send(file=file)
+        file = discord.File(fp=mp3_fp, filename="voice.mp3")
+        await ctx.send(file=file)
+    else:
+        return await ctx.send("TTS of more than 1000 characters not allowed")
 
 # ---------------- MUSIC FIXED ----------------
 
@@ -292,7 +295,8 @@ async def play_music(ctx, *, query: str):
     else:
         await player.move_to(ctx.author.voice.channel)
 
-    tracks = await wavelink.Playable.search(query)
+    # 👇 SOUND CLOUD SEARCH
+    tracks = await wavelink.Playable.search(f"scsearch:{query}")
 
     if not tracks:
         return await ctx.send("No results")
@@ -305,6 +309,7 @@ async def stop_music(ctx):
     player = ctx.voice_client
     if player:
         await player.disconnect()
+        await ctx.send("Stopped playing the music!")
 
 # ---------------- RUN ----------------
 

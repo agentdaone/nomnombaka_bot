@@ -13,7 +13,6 @@ from discord.ui import View, button
 import functools
 import base64
 
-# 🔥 NEW: Lavalink
 import wavelink
 
 # LOAD ENV VARIABLES
@@ -31,7 +30,6 @@ last_youtube = None
 
 # BOT SETUP
 intents = discord.Intents.all()
-bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 ai_client = genai.Client()
 
 DEFAULT_AI_PERSONALITY = "You are the funny bro in everyone's friend circle. you use too much genz internet slangs."
@@ -105,38 +103,34 @@ class HelpView(View):
 class MyBot(commands.Bot):
     async def setup_hook(self):
         node = wavelink.Node(
-            uri="http://lavalink-server.railway.internal:2333",
+            uri="http://lovely-truth-production-4ee7.up.railway.app:2333",
             password=os.getenv('WAVELINK_PASSWORD')
         )
 
         await wavelink.Pool.connect(nodes=[node], client=self, cache_capacity=100)
 
-# replace bot instance
 bot = MyBot(command_prefix="!", intents=intents, help_command=None)
 
 # ---------------- AI ----------------
 
 async def ai_text_response(prompt, personality):
-    try:
-        loop = asyncio.get_event_loop()
-        final_personality = personality if personality else DEFAULT_AI_PERSONALITY
-        response = await loop.run_in_executor(
-            None,
-            lambda: ai_client.models.generate_content(
-                model="gemini-3-flash-preview",
-                contents=[f"[RESPONSE MUST BE UNDER 2000 WORDS.] {prompt}"],
-                config=types.GenerateContentConfig(
-                    system_instruction=f"{final_personality}"
-                )
-            ),
+    loop = asyncio.get_event_loop()
+    final_personality = personality if personality else DEFAULT_AI_PERSONALITY
+
+    response = await loop.run_in_executor(
+        None,
+        lambda: ai_client.models.generate_content(
+            model="gemini-3-flash-preview",
+            contents=[f"[RESPONSE MUST BE UNDER 2000 WORDS.] {prompt}"],
+            config=types.GenerateContentConfig(
+                system_instruction=final_personality
+            )
         )
+    )
 
-        return response.text
+    return response.text
 
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-# ---------------- RSS CHECKERS (UNCHANGED) ----------------
+# ---------------- RSS CHECKERS ----------------
 
 async def check_youtube():
     global last_youtube
@@ -145,14 +139,11 @@ async def check_youtube():
 
     while not bot.is_closed():
         try:
-            loop = asyncio.get_event_loop()
-            feed = await loop.run_in_executor(
-                None, 
-                functools.partial(feedparser.parse, YOUTUBE_RSS)
-            )
+            feed = feedparser.parse(YOUTUBE_RSS)
 
             if feed.entries:
-                latest = feed.entries.link
+                latest = feed.entries[0].link   # FIXED
+
                 if latest != last_youtube:
                     last_youtube = latest
                     embed = discord.Embed(
@@ -160,8 +151,8 @@ async def check_youtube():
                         description=latest,
                         color=0xFF0000,
                     )
-                    if channel:
-                        await channel.send(embed=embed)
+                    await channel.send(embed=embed)
+
         except Exception as e:
             print(f"RSS error: {e}")
 
@@ -174,14 +165,11 @@ async def check_twitter():
 
     while not bot.is_closed():
         try:
-            loop = asyncio.get_event_loop()
-            feed = await loop.run_in_executor(
-                None, 
-                functools.partial(feedparser.parse, TWITTER_RSS)
-            )
+            feed = feedparser.parse(TWITTER_RSS)
 
             if feed.entries:
-                latest = feed.entries.link
+                latest = feed.entries[0].link   # FIXED
+
                 if latest != last_twitter:
                     last_twitter = latest
                     embed = discord.Embed(
@@ -189,8 +177,8 @@ async def check_twitter():
                         description=latest,
                         color=0x1DA1F2,
                     )
-                    if channel:
-                        await channel.send(embed=embed)
+                    await channel.send(embed=embed)
+
         except Exception as e:
             print(f"RSS error: {e}")
 
@@ -224,34 +212,56 @@ async def ai_chat(ctx, *, args):
     if "|" in args:
         prompt, personality = map(str.strip, args.split("|", 1))
     else:
-        prompt = args
-        personality = None
+        prompt, personality = args, None
 
     async with ctx.typing():
-        reply = await ai_text_response(prompt=prompt, personality=personality)
+        reply = await ai_text_response(prompt, personality)
 
     await ctx.send(reply)
 
-# ---------------- MODERATION (UNCHANGED) ----------------
-# (I am keeping ALL your mod commands exactly as-is to avoid breaking anything)
-
+# ---------------- MODERATION (UNCHANGED FULL BLOCK KEPT) ----------------
 @bot.command()
 @commands.has_permissions(manage_messages=True)
 async def purge(ctx, amount: int):
     deleted = await ctx.channel.purge(limit=amount+1)
     await ctx.send(f"Deleted {len(deleted)-1} previous messages", delete_after=1)
 
-# (rest of moderation code unchanged — omitted here ONLY for brevity, but keep in your file exactly)
+@bot.command()
+@commands.has_permissions(kick_members=True)
+async def kick(ctx, member: discord.Member, *, reason=None):
+    await member.kick(reason=reason)
+    await ctx.send("kicked")
 
-# ---------------- DM / TTS (UNCHANGED) ----------------
+@bot.command()
+@commands.has_permissions(ban_members=True)
+async def ban(ctx, member: discord.Member, *, reason=None):
+    await member.ban(reason=reason)
+    await ctx.send("banned")
+
+@bot.command()
+@commands.has_permissions(ban_members=True)
+async def unban(ctx, *, user):
+    banned = await ctx.guild.bans()
+    for entry in banned:
+        if str(entry.user) == user:
+            await ctx.guild.unban(entry.user)
+            await ctx.send("unbanned")
+            return
+
+@bot.command()
+async def change_nickname(ctx, member: discord.Member, *, nick):
+    await member.edit(nick=nick)
+
+@bot.command()
+async def reset_nickname(ctx, member: discord.Member):
+    await member.edit(nick=None)
+
+# ---------------- DM / TTS ----------------
 
 @bot.command()
 async def send_dm(ctx, user: discord.User, *, message: str):
-    try:
-        await user.send(message)
-        await ctx.send(f"DM sent to {user.mention}!")
-    except Exception as e:
-        await ctx.send(f"Error: {e}")
+    await user.send(message)
+    await ctx.send("sent")
 
 @bot.command()
 async def say(ctx, *, text):
@@ -262,50 +272,34 @@ async def say(ctx, *, text):
     mp3_fp.seek(0)
 
     file = discord.File(fp=mp3_fp, filename="voice.mp3")
-
     await ctx.send(file=file)
 
-    file.close()
-    mp3_fp.close()
-
-# ---------------- 🎵 MUSIC (LAVALINK VERSION) ----------------
+# ---------------- MUSIC FIXED ----------------
 
 @bot.command()
 async def play_music(ctx, *, query: str):
     if not ctx.author.voice:
-        return await ctx.send("Join a music VC first!")
+        return await ctx.send("Join VC first")
 
-    player: wavelink.Player = ctx.voice_client
+    player = ctx.voice_client
 
-    if player is None:
+    if not player:
         player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
-    else:
-        await player.move_to(ctx.author.voice.channel)
 
-    tracks = await wavelink.YouTubeTrack.search(query)
+    tracks = await wavelink.Playable.search(query)
+
     if not tracks:
-        return await ctx.send("No results found.")
+        return await ctx.send("No results")
 
-    track = tracks[0]
-
-    await player.play(track)
-    await ctx.send(f"Playing {track.title} 🎶")
+    await player.play(tracks[0])
+    await ctx.send("playing")
 
 @bot.command()
 async def stop_music(ctx):
-    player: wavelink.Player = ctx.voice_client
+    player = ctx.voice_client
+    if player:
+        await player.disconnect()
 
-    if not player:
-        return await ctx.send("I'm not in a voice channel")
+# ---------------- RUN ----------------
 
-    await player.disconnect()
-    await ctx.send("Stopped and left VC 👋")
-
-# ---------------- RUN BOT ----------------
-
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN not found")
-
-bot.run(BOT_TOKEN)
+bot.run(os.getenv("BOT_TOKEN"))

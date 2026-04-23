@@ -11,6 +11,7 @@ from google.genai import types
 import yt_dlp
 from typing import Any
 from discord.ui import View, button
+import functools
 
 # LOAD ENV VARIABLES
 load_dotenv()
@@ -177,58 +178,60 @@ async def ai_image_response(prompt):
 
 # ---------------- RSS CHECKERS ----------------
 
+
 async def check_youtube():
     global last_youtube
-
     await bot.wait_until_ready()
-    channel = await bot.fetch_channel(YOUTUBE_VIDEOS_CHANNEL_ID)
+    channel = bot.get_channel(YOUTUBE_VIDEOS_CHANNEL_ID)
 
     while not bot.is_closed():
-        feed = feedparser.parse(YOUTUBE_RSS)
+        # Run the blocking feedparser in a separate thread
+        loop = asyncio.get_event_loop()
+        feed = await loop.run_in_executor(
+            None, 
+            functools.partial(feedparser.parse, YOUTUBE_RSS)
+        )
 
         if feed.entries:
-            latest = feed.entries[0].link
-
+            latest = feed.entries.link
             if latest != last_youtube:
                 last_youtube = latest
-
                 embed = discord.Embed(
                     title="NEW YOUTUBE VIDEO 🔥",
                     description=latest,
-                    color=0x1DA1F2,
+                    color=0xFF0000, # YouTube Red
                 )
-
-                if isinstance(channel, discord.TextChannel):
+                if channel:
                     await channel.send(embed=embed)
 
-        await asyncio.sleep(60)
+        await asyncio.sleep(300) # Check every 5 mins (don't spam or Nitter will ban you)
 
 
 async def check_twitter():
     global last_twitter
-
     await bot.wait_until_ready()
-    channel = await bot.fetch_channel(TWITTER_POSTS_CHANNEL_ID)
+    channel = bot.get_channel(TWITTER_POSTS_CHANNEL_ID)
 
     while not bot.is_closed():
-        feed = feedparser.parse(TWITTER_RSS)
+        loop = asyncio.get_event_loop()
+        feed = await loop.run_in_executor(
+            None, 
+            functools.partial(feedparser.parse, TWITTER_RSS)
+        )
 
         if feed.entries:
-            latest = feed.entries[0].link
-
+            latest = feed.entries.link
             if latest != last_twitter:
                 last_twitter = latest
-
                 embed = discord.Embed(
                     title="NEW TWEET!",
                     description=latest,
                     color=0x1DA1F2,
                 )
-
-                if isinstance(channel, discord.TextChannel):
+                if channel:
                     await channel.send(embed=embed)
 
-        await asyncio.sleep(60)
+        await asyncio.sleep(300)
 
 
 # ---------------- EVENTS ----------------

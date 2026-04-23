@@ -296,7 +296,7 @@ async def play_music(ctx, *, query: str):
         await player.move_to(ctx.author.voice.channel)
 
     # 👇 SOUND CLOUD SEARCH
-    tracks = await wavelink.Playable.search(f"scsearch:{query}")
+    tracks = await wavelink.Playable.search(query)
 
     if not tracks:
         return await ctx.send("No results")

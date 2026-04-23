@@ -11,5 +11,4 @@ cmds = ["echo 'Environment ready for Python 3.13'"]
 cmd = "/opt/venv/bin/python bot.py"
 
 [variables]
-PYTHONUNBUFFERED = 
-"1"
+PYTHONUNBUFFERED = "1"

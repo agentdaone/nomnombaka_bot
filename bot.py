@@ -103,11 +103,15 @@ class HelpView(View):
 class MyBot(commands.Bot):
     async def setup_hook(self):
         node = wavelink.Node(
-            uri="http://lovely-truth-production-4ee7.up.railway.app:2333",
-            password=os.getenv('WAVELINK_PASSWORD')
+            uri="http://lavalink-server.railway.internal:2333",
+            password=os.getenv("WAVELINK_PASSWORD")
         )
 
-        # await wavelink.Pool.connect(nodes=[node], client=self, cache_capacity=100)
+        await wavelink.Pool.connect(
+            nodes=[node],
+            client=self,
+            cache_capacity=100
+        )
 
 bot = MyBot(command_prefix="!", intents=intents, help_command=None)
 
@@ -285,6 +289,8 @@ async def play_music(ctx, *, query: str):
 
     if not player:
         player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
+    else:
+        await player.move_to(ctx.author.voice.channel)
 
     tracks = await wavelink.Playable.search(query)
 
@@ -292,7 +298,7 @@ async def play_music(ctx, *, query: str):
         return await ctx.send("No results")
 
     await player.play(tracks[0])
-    await ctx.send("playing")
+    await ctx.send(f"🎶 Playing: {tracks[0].title}")
 
 @bot.command()
 async def stop_music(ctx):
